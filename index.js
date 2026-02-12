@@ -8,11 +8,20 @@ const fs = require("fs");
 const bcrypt = require("bcrypt");
 
 const app = express();
-app.use(cors());
+
+// ======================= CORS =======================
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 
 // ==========================================================
-// 1. DATABASE
+// DATABASE
 // ==========================================================
 const pool = mysql
   .createPool({
@@ -26,10 +35,17 @@ const pool = mysql
   })
   .promise();
 
-console.log(`✅ Database: ${process.env.DB_NAME}`);
+(async () => {
+  try {
+    await pool.query("SELECT 1");
+    console.log("✅ Database connected");
+  } catch (err) {
+    console.error("❌ Database gagal connect:", err.message);
+  }
+})();
 
 // ==========================================================
-// 2. UPLOAD
+// UPLOAD
 // ==========================================================
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -47,7 +63,7 @@ const upload = multer({ storage });
 app.use("/api/uploads", express.static(uploadDir));
 
 // ==========================================================
-// 3. AUTH
+// AUTH
 // ==========================================================
 
 app.post("/api/login", async (req, res) => {
@@ -107,7 +123,7 @@ app.post("/api/register", async (req, res) => {
 });
 
 // ==========================================================
-// 4. USERS
+// USERS
 // ==========================================================
 
 app.get("/api/users/:role", async (req, res) => {
@@ -122,67 +138,8 @@ app.get("/api/users/:role", async (req, res) => {
   }
 });
 
-app.post("/api/users", async (req, res) => {
-  const {
-    nama_lengkap,
-    nim,
-    jurusan,
-    no_hp,
-    username,
-    password,
-    role,
-    company_id,
-  } = req.body;
-
-  try {
-    const hashed = await bcrypt.hash(password, 10);
-
-    const [result] = await pool.query(
-      `INSERT INTO users
-      (nama_lengkap, nim, jurusan, no_hp, username, password, role, status_laporan, company_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'locked', ?)`,
-      [
-        nama_lengkap,
-        nim || null,
-        jurusan || null,
-        no_hp || null,
-        username,
-        hashed,
-        role,
-        company_id || null,
-      ],
-    );
-
-    res.json({ id: result.insertId });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete("/api/users/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM users WHERE id = ?", [req.params.id]);
-    res.json({ message: "User dihapus" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ==========================================================
-// 5. COMPANIES
-// ==========================================================
-
-app.get("/api/companies", async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM companies ORDER BY id DESC");
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================================
-// 6. LOGBOOK
+// LOGBOOK
 // ==========================================================
 
 app.post("/api/logbook", upload.single("bukti_foto"), async (req, res) => {
@@ -203,49 +160,18 @@ app.post("/api/logbook", upload.single("bukti_foto"), async (req, res) => {
   }
 });
 
-app.get("/api/logbook/:userId", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT * FROM logbooks WHERE user_id = ? ORDER BY tanggal DESC",
-      [req.params.userId],
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// ==========================================================
+// HEALTH CHECK (penting buat Railway)
+// ==========================================================
+app.get("/", (req, res) => {
+  res.send("API MAGANG RUNNING 🚀");
 });
 
 // ==========================================================
-// 7. ADMIN STATS
+// START SERVER (WAJIB pakai PORT railway)
 // ==========================================================
+const PORT = process.env.PORT || 8080;
 
-app.get("/api/admin/stats", async (req, res) => {
-  try {
-    const queries = [
-      pool.query("SELECT COUNT(*) as count FROM users WHERE role='peserta'"),
-      pool.query("SELECT COUNT(*) as count FROM users WHERE role='supervisor'"),
-      pool.query("SELECT COUNT(*) as count FROM logbooks"),
-      pool.query("SELECT COUNT(*) as count FROM companies"),
-      pool.query("SELECT COUNT(*) as count FROM placements"),
-    ];
-
-    const results = await Promise.all(queries);
-
-    res.json({
-      total_peserta: results[0][0][0].count,
-      total_supervisor: results[1][0][0].count,
-      total_logbooks: results[2][0][0].count,
-      total_perusahaan: results[3][0][0].count,
-      total_placed: results[4][0][0].count,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================================
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
