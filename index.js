@@ -9,6 +9,8 @@ const bcrypt = require("bcrypt");
 
 const app = express();
 
+console.log("🔥 BACKEND CTI AKTIF 🔥");
+
 // ================= CORS (WAJIB UNTUK FRONTEND CPANEL) =================
 app.use(
   cors({
@@ -288,3 +290,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
