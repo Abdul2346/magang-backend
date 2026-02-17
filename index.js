@@ -213,6 +213,8 @@ router.get("/placements", async (req, res) => {
 });
 
 // --- E. LOGBOOK ---
+
+// CREATE
 router.post("/logbook", upload.single("bukti_foto"), async (req, res) => {
   try {
     const { user_id, kegiatan, tanggal, kehadiran } = req.body;
@@ -223,12 +225,14 @@ router.post("/logbook", upload.single("bukti_foto"), async (req, res) => {
       "INSERT INTO logbooks (user_id, tanggal, kegiatan, bukti_foto, status, kehadiran) VALUES (?, ?, ?, ?, 'menunggu', ?)",
       [user_id, tanggal, kegiatan, bukti_foto, statusHadir],
     );
+
     res.json({ id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// READ by user
 router.get("/logbook/:userId", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -238,6 +242,57 @@ router.get("/logbook/:userId", async (req, res) => {
     res.json(rows);
   } catch (e) {
     res.status(500).json(e);
+  }
+});
+
+// UPDATE isi logbook
+router.put("/logbook/:id", upload.single("bukti_foto"), async (req, res) => {
+  try {
+    const { tanggal, kegiatan } = req.body;
+    const id = req.params.id;
+
+    if (req.file) {
+      await pool.query(
+        "UPDATE logbooks SET tanggal=?, kegiatan=?, bukti_foto=? WHERE id=?",
+        [tanggal, kegiatan, req.file.filename, id],
+      );
+    } else {
+      await pool.query("UPDATE logbooks SET tanggal=?, kegiatan=? WHERE id=?", [
+        tanggal,
+        kegiatan,
+        id,
+      ]);
+    }
+
+    res.json({ message: "Logbook diupdate" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE status validasi (approve / reject)
+router.put("/logbook-status/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    await pool.query("UPDATE logbooks SET status=? WHERE id=?", [
+      status,
+      req.params.id,
+    ]);
+
+    res.json({ message: "Status diperbarui" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE
+router.delete("/logbook/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM logbooks WHERE id=?", [req.params.id]);
+    res.json({ message: "Logbook dihapus" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
